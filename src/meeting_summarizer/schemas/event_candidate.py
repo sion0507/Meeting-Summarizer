@@ -29,3 +29,13 @@ class EventCandidate:
     evidence_text: str
     keywords: list[str]
     embedding_text: str
+
+    def __post_init__(self) -> None:
+        for name in ("candidate_id", "meeting_id", "segment_id", "source_file", "title", "summary", "status", "evidence_text", "embedding_text"):
+            value = getattr(self, name)
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"EventCandidate.{name} must be a non-empty string.")
+        if not isinstance(self.actors, list):
+            raise ValueError("EventCandidate.actors must be a list[str].")
+        if not isinstance(self.keywords, list):
+            raise ValueError("EventCandidate.keywords must be a list[str].")

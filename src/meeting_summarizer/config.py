@@ -33,8 +33,24 @@ class AppConfig:
     report_path: Path
 
 
+def _require_float_env(key: str, default: str) -> float:
+    raw = os.getenv(key, default)
+    try:
+        return float(raw)
+    except ValueError as exc:
+        raise ValueError(f"{key} must be a float, got: {raw!r}") from exc
+
+
+def _require_int_env(key: str, default: str) -> int:
+    raw = os.getenv(key, default)
+    try:
+        return int(raw)
+    except ValueError as exc:
+        raise ValueError(f"{key} must be an int, got: {raw!r}") from exc
+
+
 def load_config() -> AppConfig:
-    """Load config from environment with MVP-safe defaults."""
+    """Load config from environment with explicit validation errors."""
 
     data_dir = Path(os.getenv("DATA_DIR", "data"))
     input_dir = Path(os.getenv("INPUT_DIR", str(data_dir / "raw")))
@@ -46,12 +62,34 @@ def load_config() -> AppConfig:
     reports_dir = data_dir / "reports"
     vector_store_dir = data_dir / "vector_store"
 
+    similarity_threshold = _require_float_env("SIMILARITY_THRESHOLD", "0.8")
+    if not 0.0 <= similarity_threshold <= 1.0:
+        raise ValueError(
+            f"SIMILARITY_THRESHOLD must be between 0 and 1, got {similarity_threshold}."
+        )
+
+    segment_size_pages = _require_int_env("SEGMENT_SIZE_PAGES", "2")
+    if segment_size_pages < 1:
+        raise ValueError(
+            f"SEGMENT_SIZE_PAGES must be >= 1, got {segment_size_pages}."
+        )
+
+    llm_provider = os.getenv("LLM_PROVIDER", "local").strip()
+    if not llm_provider:
+        raise ValueError("LLM_PROVIDER must not be empty.")
+
+    local_model_path = os.getenv("LOCAL_MODEL_PATH", "").strip()
+    if llm_provider == "local" and not local_model_path:
+        raise ValueError(
+            "LOCAL_MODEL_PATH is required when LLM_PROVIDER=local."
+        )
+
     return AppConfig(
-        llm_provider=os.getenv("LLM_PROVIDER", "local"),
-        local_model_path=os.getenv("LOCAL_MODEL_PATH", ""),
-        embedding_model=os.getenv("EMBEDDING_MODEL", ""),
-        similarity_threshold=float(os.getenv("SIMILARITY_THRESHOLD", "0.8")),
-        segment_size_pages=int(os.getenv("SEGMENT_SIZE_PAGES", "2")),
+        llm_provider=llm_provider,
+        local_model_path=local_model_path,
+        embedding_model=os.getenv("EMBEDDING_MODEL", "").strip(),
+        similarity_threshold=similarity_threshold,
+        segment_size_pages=segment_size_pages,
         data_dir=data_dir,
         input_dir=input_dir,
         parsed_dir=parsed_dir,

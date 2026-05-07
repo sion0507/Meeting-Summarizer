@@ -781,6 +781,7 @@ data/
   vector_store/
     candidates.faiss
     candidate_metadata.json
+    candidate_groups.json
 ```
 
 The exact structure may differ if documented, but the implementation must preserve the same logical outputs.

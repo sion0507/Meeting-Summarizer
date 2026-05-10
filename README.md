@@ -149,11 +149,12 @@ PDF/HTML 출력은 추후 확장 대상으로 둡니다.
 
 사건 후보 임베딩 단계는 `src/meeting_summarizer/embeddings/embedder.py`의 `BaseEmbedder` 인터페이스를 통해 교체 가능하게 구성합니다. MVP 기본 임베딩 모델은 `nlpai-lab/KURE-v1`이며, GGUF LLM 파일처럼 로컬 모델 디렉터리에 저장한 뒤 필요할 때 지연 로딩합니다. 기본 경로는 `./models/KURE-v1`이고 `EMBEDDING_MODEL_PATH`로 변경할 수 있습니다.
 
-한국어 토큰화는 `kiwipiepy` 기반 `KiwiMorphTokenizer`를 사용해 형태소 단위로 수행합니다. `HashingEmbedder`는 모델 파일 없이 테스트할 때만 쓰는 deterministic fallback이며, 운영 기본값은 `KureV1Embedder`입니다.
+한국어 토큰화는 `kiwipiepy` 기반 `KiwiMorphTokenizer`를 사용해 형태소 단위로 수행합니다. 임베딩 모델은 기본적으로 `EMBEDDING_DEVICE=cpu`에서 실행해 GPU/VRAM을 로컬 LLM에 우선 배정합니다. 후보 수가 많아 CPU 임베딩이 병목이면 `cuda` 등 sentence-transformers가 지원하는 device로 변경할 수 있습니다. `HashingEmbedder`는 모델 파일 없이 테스트할 때만 쓰는 deterministic fallback이며, 운영 기본값은 `KureV1Embedder`입니다.
 
 ```env
 EMBEDDING_MODEL=nlpai-lab/KURE-v1
 EMBEDDING_MODEL_PATH=./models/KURE-v1
+EMBEDDING_DEVICE=cpu
 ```
 
 FAISS 저장소는 `data/vector_store/` 아래에 다음 두 파일을 함께 저장합니다.

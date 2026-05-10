@@ -22,6 +22,7 @@ from meeting_summarizer.schemas.event_candidate import EventCandidate
 
 DEFAULT_EMBEDDING_MODEL = "nlpai-lab/KURE-v1"
 DEFAULT_EMBEDDING_MODEL_PATH = "./models/KURE-v1"
+DEFAULT_EMBEDDING_DEVICE = "cpu"
 _TOKEN_PATTERN = re.compile(r"[\w가-힣]+", re.UNICODE)
 
 
@@ -174,10 +175,12 @@ class SentenceTransformerEmbedder(BaseEmbedder):
         *,
         tokenizer: BaseTextTokenizer | None = None,
         model_name: str = DEFAULT_EMBEDDING_MODEL,
+        device: str = DEFAULT_EMBEDDING_DEVICE,
         **model_kwargs: Any,
     ) -> None:
         self.model_path = Path(model_path)
         self.model_name = model_name
+        self.device = _validate_device(device)
         self.tokenizer = tokenizer or KiwiMorphTokenizer()
         self.model_kwargs = model_kwargs
         self._model: Any | None = None
@@ -217,7 +220,11 @@ class SentenceTransformerEmbedder(BaseEmbedder):
             )
         from sentence_transformers import SentenceTransformer
 
-        self._model = SentenceTransformer(str(self.model_path), **self.model_kwargs)
+        self._model = SentenceTransformer(
+            str(self.model_path),
+            device=self.device,
+            **self.model_kwargs,
+        )
         self._dimension = int(self._model.get_sentence_embedding_dimension())
         if self._dimension < 1:
             raise EmbeddingError("Embedding model returned an invalid dimension.")
@@ -232,12 +239,14 @@ class KureV1Embedder(SentenceTransformerEmbedder):
         model_path: str | Path = DEFAULT_EMBEDDING_MODEL_PATH,
         *,
         tokenizer: BaseTextTokenizer | None = None,
+        device: str = DEFAULT_EMBEDDING_DEVICE,
         **model_kwargs: Any,
     ) -> None:
         super().__init__(
             model_path,
             tokenizer=tokenizer,
             model_name=DEFAULT_EMBEDDING_MODEL,
+            device=device,
             **model_kwargs,
         )
 
@@ -273,6 +282,7 @@ def create_embedder(
     *,
     model_path: str | Path | None = None,
     tokenizer: BaseTextTokenizer | None = None,
+    device: str = DEFAULT_EMBEDDING_DEVICE,
 ) -> BaseEmbedder:
     """Create an embedder from configurable model name/path values.
 
@@ -284,8 +294,13 @@ def create_embedder(
 
     raw_name = (model_name or DEFAULT_EMBEDDING_MODEL).strip()
     raw_path = Path(model_path or DEFAULT_EMBEDDING_MODEL_PATH)
+    embedding_device = _validate_device(device)
     if raw_name in {DEFAULT_EMBEDDING_MODEL, "kure-v1", "KURE-v1"}:
-        return KureV1Embedder(raw_path, tokenizer=tokenizer)
+        return KureV1Embedder(
+            raw_path,
+            tokenizer=tokenizer,
+            device=embedding_device,
+        )
     if raw_name == "hashing":
         return HashingEmbedder(tokenizer=tokenizer or RegexTokenizer())
     if raw_name.startswith("hashing:"):
@@ -305,11 +320,18 @@ def create_embedder(
             transformer_path,
             tokenizer=tokenizer or KiwiMorphTokenizer(),
             model_name=transformer_path,
+            device=embedding_device,
         )
     raise ValueError(
         "Unsupported EMBEDDING_MODEL. Use 'nlpai-lab/KURE-v1', 'kure-v1', "
         "'hashing', 'hashing:<dim>', or 'sentence-transformers:<local_path>'."
     )
+
+
+def _validate_device(device: str) -> str:
+    if not isinstance(device, str) or not device.strip():
+        raise ValueError("embedding device must be a non-empty string.")
+    return device.strip()
 
 
 def _batched(items: Sequence[str], batch_size: int) -> Iterable[Sequence[str]]:

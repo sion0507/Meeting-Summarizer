@@ -1,6 +1,7 @@
 import pytest
 
 from meeting_summarizer.embeddings import (
+    DEFAULT_EMBEDDING_DEVICE,
     DEFAULT_EMBEDDING_MODEL,
     KureV1Embedder,
     HashingEmbedder,
@@ -77,6 +78,19 @@ def test_create_embedder_defaults_to_local_kure_v1_without_loading_model(tmp_pat
 
     assert isinstance(embedder, KureV1Embedder)
     assert embedder.model_path == tmp_path / "KURE-v1"
+    assert embedder.device == DEFAULT_EMBEDDING_DEVICE
+
+
+def test_create_embedder_allows_embedding_device_override(tmp_path) -> None:
+    embedder = create_embedder(
+        DEFAULT_EMBEDDING_MODEL,
+        model_path=tmp_path / "KURE-v1",
+        tokenizer=RegexTokenizer(),
+        device="cuda",
+    )
+
+    assert isinstance(embedder, KureV1Embedder)
+    assert embedder.device == "cuda"
 
 
 def test_kiwi_tokenizer_splits_korean_text_into_morpheme_tokens() -> None:

@@ -15,6 +15,7 @@ class AppConfig:
     local_model_path: str
     embedding_model: str
     embedding_model_path: Path
+    embedding_device: str
     similarity_threshold: float
     segment_size_pages: int
 
@@ -87,6 +88,10 @@ def load_config() -> AppConfig:
             "LOCAL_MODEL_PATH is required when LLM_PROVIDER=local."
         )
 
+    embedding_device = os.getenv("EMBEDDING_DEVICE", "cpu").strip()
+    if not embedding_device:
+        raise ValueError("EMBEDDING_DEVICE must not be empty.")
+
     return AppConfig(
         llm_provider=llm_provider,
         local_model_path=local_model_path,
@@ -94,6 +99,7 @@ def load_config() -> AppConfig:
         embedding_model_path=Path(
             os.getenv("EMBEDDING_MODEL_PATH", "./models/KURE-v1")
         ),
+        embedding_device=embedding_device,
         similarity_threshold=similarity_threshold,
         segment_size_pages=segment_size_pages,
         data_dir=data_dir,

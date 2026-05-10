@@ -145,7 +145,30 @@ PDF/HTML 출력은 추후 확장 대상으로 둡니다.
 
 모델 경로, 임베딩 모델, 저장 경로 등은 설정 파일이나 환경 변수로 교체 가능하게 설계하는 것을 권장합니다.
 
-### 5.1 로컬 LLM 설정
+### 5.1 임베딩 및 FAISS 저장소 설정
+
+사건 후보 임베딩 단계는 `src/meeting_summarizer/embeddings/embedder.py`의 `BaseEmbedder` 인터페이스를 통해 교체 가능하게 구성합니다. MVP 기본 임베딩 모델은 `nlpai-lab/KURE-v1`이며, GGUF LLM 파일처럼 로컬 모델 디렉터리에 저장한 뒤 필요할 때 지연 로딩합니다. 기본 경로는 `./models/KURE-v1`이고 `EMBEDDING_MODEL_PATH`로 변경할 수 있습니다.
+
+한국어 토큰화는 `kiwipiepy` 기반 `KiwiMorphTokenizer`를 사용해 형태소 단위로 수행합니다. 임베딩 모델은 기본적으로 `EMBEDDING_DEVICE=cpu`에서 실행해 GPU/VRAM을 로컬 LLM에 우선 배정합니다. 후보 수가 많아 CPU 임베딩이 병목이면 `cuda` 등 sentence-transformers가 지원하는 device로 변경할 수 있습니다. `HashingEmbedder`는 모델 파일 없이 테스트할 때만 쓰는 deterministic fallback이며, 운영 기본값은 `KureV1Embedder`입니다.
+
+```env
+EMBEDDING_MODEL=nlpai-lab/KURE-v1
+EMBEDDING_MODEL_PATH=./models/KURE-v1
+EMBEDDING_DEVICE=cpu
+```
+
+FAISS 저장소는 `data/vector_store/` 아래에 다음 두 파일을 함께 저장합니다.
+
+- `candidates.faiss`: 후보 임베딩 벡터 인덱스
+- `candidate_metadata.json`: `candidate_id`와 FAISS row index 매핑, 차원, metric, record count
+
+재실행 또는 로드 시 FAISS 인덱스의 vector count/dimension과 metadata의 count/dimension을 검증하여 서로 맞지 않는 파일 조합을 오류로 처리합니다. FAISS 기능을 사용하려면 vector extra를 설치합니다.
+
+```bash
+pip install -e ".[vector]"
+```
+
+### 5.2 로컬 LLM 설정
 
 MVP의 기본 LLM provider는 `local`이며, 오프라인 환경에서도 동작할 수 있도록 Python 프로세스 안에서 GGUF 파일을 직접 로딩하는 방식을 사용합니다. 로컬 추론에는 `llama-cpp-python`이 필요합니다.
 

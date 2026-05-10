@@ -14,6 +14,8 @@ class AppConfig:
     llm_provider: str
     local_model_path: str
     embedding_model: str
+    embedding_model_path: Path
+    embedding_device: str
     similarity_threshold: float
     segment_size_pages: int
 
@@ -31,6 +33,8 @@ class AppConfig:
     event_candidates_path: Path
     event_cases_path: Path
     report_path: Path
+    faiss_index_path: Path
+    candidate_metadata_path: Path
 
 
 def _require_float_env(key: str, default: str) -> float:
@@ -84,10 +88,18 @@ def load_config() -> AppConfig:
             "LOCAL_MODEL_PATH is required when LLM_PROVIDER=local."
         )
 
+    embedding_device = os.getenv("EMBEDDING_DEVICE", "cpu").strip()
+    if not embedding_device:
+        raise ValueError("EMBEDDING_DEVICE must not be empty.")
+
     return AppConfig(
         llm_provider=llm_provider,
         local_model_path=local_model_path,
-        embedding_model=os.getenv("EMBEDDING_MODEL", "").strip(),
+        embedding_model=os.getenv("EMBEDDING_MODEL", "nlpai-lab/KURE-v1").strip(),
+        embedding_model_path=Path(
+            os.getenv("EMBEDDING_MODEL_PATH", "./models/KURE-v1")
+        ),
+        embedding_device=embedding_device,
         similarity_threshold=similarity_threshold,
         segment_size_pages=segment_size_pages,
         data_dir=data_dir,
@@ -103,6 +115,8 @@ def load_config() -> AppConfig:
         event_candidates_path=candidates_dir / "event_candidates.json",
         event_cases_path=cases_dir / "event_cases.json",
         report_path=reports_dir / "report.md",
+        faiss_index_path=vector_store_dir / "candidates.faiss",
+        candidate_metadata_path=vector_store_dir / "candidate_metadata.json",
     )
 
 

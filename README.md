@@ -145,6 +145,28 @@ PDF/HTML 출력은 추후 확장 대상으로 둡니다.
 
 모델 경로, 임베딩 모델, 저장 경로 등은 설정 파일이나 환경 변수로 교체 가능하게 설계하는 것을 권장합니다.
 
+### 5.1 로컬 LLM 설정
+
+MVP의 기본 LLM provider는 `local`이며, 오프라인 환경에서도 동작할 수 있도록 Python 프로세스 안에서 GGUF 파일을 직접 로딩하는 방식을 사용합니다. 로컬 추론에는 `llama-cpp-python`이 필요합니다.
+
+```bash
+pip install -e ".[local]"
+cp .env.example .env
+```
+
+주요 환경 변수는 다음과 같습니다.
+
+```env
+LLM_PROVIDER=local
+LOCAL_MODEL_PATH=./models/qwen2.5-14b-q4.gguf
+LOCAL_LLM_N_CTX=8192
+LOCAL_LLM_N_GPU_LAYERS=-1
+LOCAL_LLM_MAX_TOKENS=2048
+LOCAL_LLM_TEMPERATURE=0.0
+```
+
+`LOCAL_MODEL_PATH`는 실제 GGUF 모델 파일을 가리켜야 하며, HTTP 서버나 외부 API 호출 없이 로컬 파일 기반으로 모델을 실행합니다.
+
 ---
 
 ## 6. 데이터 스키마

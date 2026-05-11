@@ -22,9 +22,9 @@ from __future__ import annotations
 import json
 from dataclasses import asdict, fields, is_dataclass
 from pathlib import Path
-from typing import Any, Literal, TypeVar, get_args, get_origin
+from typing import Any, Literal, TypeVar, get_args, get_origin, get_type_hints
 
-from meeting_summarizer.schemas import ParsedDocument, Segment
+from meeting_summarizer.schemas import EventCandidate, EventCase, ParsedDocument, Segment
 
 JSON_ENCODING = "utf-8"
 JSON_INDENT = 2
@@ -104,6 +104,35 @@ class JsonStore:
         """Load and validate segments from the canonical JSON artifact."""
         payload = self.load_artifact("segments")
         return load_dataclass_list(payload, Segment)
+
+    def save_event_candidates(self, candidates: list[EventCandidate]) -> Path:
+        """Save LLM-extracted event candidates before embedding/grouping."""
+        return self.save_artifact("event_candidates", candidates)
+
+    def load_event_candidates(self) -> list[EventCandidate]:
+        """Load and validate event candidates from the canonical JSON artifact."""
+        payload = self.load_artifact("event_candidates")
+        return load_dataclass_list(payload, EventCandidate)
+
+    def save_candidate_groups(self, groups: list["CandidateGroup"]) -> Path:
+        """Save embedding-based candidate groups before event merging."""
+        return self.save_artifact("candidate_groups", groups)
+
+    def load_candidate_groups(self) -> list["CandidateGroup"]:
+        """Load and validate candidate groups from the canonical JSON artifact."""
+        from meeting_summarizer.linking.grouping import CandidateGroup
+
+        payload = self.load_artifact("candidate_groups")
+        return load_dataclass_list(payload, CandidateGroup)
+
+    def save_event_cases(self, cases: list[EventCase]) -> Path:
+        """Save final merged event cases after timeline organization."""
+        return self.save_artifact("event_cases", cases)
+
+    def load_event_cases(self) -> list[EventCase]:
+        """Load and validate final event cases from the canonical JSON artifact."""
+        payload = self.load_artifact("event_cases")
+        return load_dataclass_list(payload, EventCase)
 
 
 def save_json(path: str | Path, payload: Any) -> None:
@@ -192,6 +221,7 @@ def _dataclass_from_dict(model: type[T], data: dict[str, Any]) -> T:
         raise TypeError(f"{model!r} is not a dataclass type.")
 
     model_fields = {field.name: field for field in fields(model)}
+    type_hints = get_type_hints(model)
     unexpected_fields = sorted(set(data) - set(model_fields))
     if unexpected_fields:
         raise ValueError(f"unexpected fields: {unexpected_fields}")
@@ -203,7 +233,10 @@ def _dataclass_from_dict(model: type[T], data: dict[str, Any]) -> T:
         raise ValueError(f"missing fields: {missing_fields}")
 
     kwargs = {
-        field_name: _coerce_value(field.type, data[field_name])
+        field_name: _coerce_value(
+            type_hints.get(field_name, field.type),
+            data[field_name],
+        )
         for field_name, field in model_fields.items()
     }
     return model(**kwargs)  # type: ignore[misc]

@@ -192,6 +192,25 @@ LOCAL_LLM_TEMPERATURE=0.0
 
 `LOCAL_MODEL_PATH`는 실제 GGUF 모델 파일을 가리켜야 하며, HTTP 서버나 외부 API 호출 없이 로컬 파일 기반으로 모델을 실행합니다.
 
+### 5.3 실행 가능한 병합/타임라인 단계
+
+사건 후보 추출과 후보군 grouping까지 완료되어 다음 두 artifact가 존재하면, 저장된 구조화 데이터만 사용해 최종 `EventCase` 병합과 타임라인 정리를 실행할 수 있습니다.
+
+- `data/candidates/event_candidates.json`
+- `data/vector_store/candidate_groups.json`
+
+```bash
+python scripts/run_pipeline.py merge-cases
+```
+
+다른 데이터 디렉터리를 사용할 때는 다음처럼 지정합니다.
+
+```bash
+python scripts/run_pipeline.py merge-cases --data-dir ./data
+```
+
+이 명령은 원본 회의록을 다시 읽지 않고, LLM 기반 사건 병합과 타임라인 정리를 거쳐 `data/cases/event_cases.json`을 저장합니다.
+
 ---
 
 ## 6. 데이터 스키마
@@ -300,9 +319,21 @@ class EventCase:
 - FAISS 벡터 인덱스
 - 사용자용 Markdown 리포트
 
-저장 디렉터리 구조는 구현자가 프로젝트 구조와 사용 편의성을 고려해 결정할 수 있습니다.
+현재 표준 저장 위치는 다음과 같습니다.
 
-단, 저장 구조를 결정하거나 변경한 경우 반드시 문서화해야 합니다.
+```text
+data/
+  parsed/parsed_documents.json
+  segments/segments.json
+  candidates/event_candidates.json
+  vector_store/candidate_groups.json
+  cases/event_cases.json
+  reports/report.md
+  vector_store/candidates.faiss
+  vector_store/candidate_metadata.json
+```
+
+`event_cases.json`은 `EventMerger`가 만든 병합 결과를 `TimelineBuilder`로 정리한 뒤 저장하는 최종 사건 케이스 artifact입니다.
 
 ---
 

@@ -67,6 +67,8 @@ HWP/HWPX 파일은 1차 구현 범위에서 제외하며, 추후 확장 대상�
 - cosine similarity `> 0.8`: 같은 사건 후보군으로 묶음
 - cosine similarity `<= 0.8`: 별도 사건으로 처리
 
+그룹핑은 `src/meeting_summarizer/linking/grouping.py`에서 코드 기반으로 수행하며, LLM을 사용하지 않습니다. 후보 간 유사도 그래프의 연결 요소를 하나의 후보군으로 산출하고, 연결되지 않은 후보는 싱글톤 그룹으로 `data/vector_store/candidate_groups.json`에 저장합니다. 각 그룹은 `group_id`, `candidate_ids`, `is_singleton`, `threshold`, `links` 필드를 포함합니다.
+
 ### 2.5 LLM 기반 최종 사건 병합
 
 임베딩 유사도 기준으로 묶인 후보군을 LLM 입력으로 전달합니다.

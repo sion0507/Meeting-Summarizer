@@ -36,6 +36,19 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         type=Path,
         help="Override DATA_DIR for this run.",
     )
+
+    report_parser = subparsers.add_parser(
+        "generate-report",
+        help=(
+            "Load data/cases/event_cases.json and write "
+            "data/reports/report.md from structured EventCase data."
+        ),
+    )
+    report_parser.add_argument(
+        "--data-dir",
+        type=Path,
+        help="Override DATA_DIR for this run.",
+    )
     return parser.parse_args(argv)
 
 
@@ -52,6 +65,14 @@ def main(argv: list[str] | None = None) -> int:
         print(
             f"Saved {result.event_case_count} event case(s) to "
             f"{result.event_cases_path}"
+        )
+        return 0
+
+    if args.command == "generate-report":
+        result = pipeline.write_markdown_report_from_artifacts()
+        print(
+            f"Saved Markdown report for {result.event_case_count} event case(s) to "
+            f"{result.report_path}"
         )
         return 0
 

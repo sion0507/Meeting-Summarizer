@@ -13,6 +13,7 @@ from pathlib import Path
 
 from meeting_summarizer.agents.event_merger import EventMerger
 from meeting_summarizer.agents.llm_client import LLMClient, build_llm_client
+from meeting_summarizer.agents.report_writer import ReportWriter
 from meeting_summarizer.agents.timeline_builder import TimelineBuilder
 from meeting_summarizer.config import AppConfig, ensure_output_directories
 from meeting_summarizer.schemas import EventCase
@@ -34,16 +35,25 @@ class PipelineRunResult:
     event_case_count: int
 
 
+@dataclass(slots=True)
+class ReportRunResult:
+    """Path and count produced by the Markdown report pipeline stage."""
+
+    report_path: Path
+    event_case_count: int
+
+
 class MeetingEventPipeline:
     """Coordinate pipeline stages without owning stage internals.
 
-    The current executable stage starts from saved candidate/group artifacts and
-    finishes step 9 of the MVP pipeline:
+    The executable artifact stages cover the end of the MVP pipeline:
 
     ``event_candidates.json`` + ``candidate_groups.json``
     -> LLM event merge
     -> LLM timeline organization
     -> ``event_cases.json``
+    -> LLM Markdown report generation from ``EventCase`` data only
+    -> ``report.md``
     """
 
     def __init__(
@@ -58,6 +68,7 @@ class MeetingEventPipeline:
         self.store = store or JsonStore(config.data_dir)
         self.event_merger = EventMerger(self.llm_client)
         self.timeline_builder = TimelineBuilder(self.llm_client)
+        self.report_writer = ReportWriter(self.llm_client)
 
     def merge_event_cases_from_artifacts(self) -> PipelineRunResult:
         """Load candidates/groups, merge cases, build timelines, and save JSON.
@@ -106,5 +117,51 @@ class MeetingEventPipeline:
         event_cases_path = self.store.save_event_cases(event_cases)
         return PipelineRunResult(
             event_cases_path=event_cases_path,
+            event_case_count=len(event_cases),
+        )
+
+    def write_markdown_report_from_artifacts(self) -> ReportRunResult:
+        """Load final event cases and write ``data/reports/report.md``.
+
+        This stage intentionally starts from ``event_cases.json`` only. It does
+        not load parsed documents, segments, or raw meeting files, preserving the
+        MVP rule that final reports are generated from structured event data.
+        """
+
+        ensure_output_directories(self.config)
+        self.store.ensure_structure()
+
+        event_cases = self.store.load_event_cases()
+        if not event_cases:
+            raise PipelineError("No event cases found for Markdown report generation.")
+
+        report_path = self.report_writer.write_report(
+            event_cases,
+            self.config.report_path,
+        )
+        LOGGER.info(
+            "Saved Markdown report for %s event case(s) to %s.",
+            len(event_cases),
+            report_path,
+        )
+        return ReportRunResult(
+            report_path=report_path,
+            event_case_count=len(event_cases),
+        )
+
+    def write_markdown_report(self, event_cases: list[EventCase]) -> ReportRunResult:
+        """Generate and save a Markdown report from already-built event cases."""
+
+        if not event_cases:
+            raise PipelineError(
+                "No event cases were provided for Markdown report generation."
+            )
+        ensure_output_directories(self.config)
+        self.store.ensure_structure()
+        report_path = self.report_writer.write_report(
+            event_cases, self.config.report_path
+        )
+        return ReportRunResult(
+            report_path=report_path,
             event_case_count=len(event_cases),
         )

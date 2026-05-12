@@ -8,7 +8,12 @@ from meeting_summarizer.agents.llm_client import LLMClient, PromptLoader
 from meeting_summarizer.config import AppConfig
 from meeting_summarizer.linking.grouping import CandidateGroup
 from meeting_summarizer.orchestrator import MeetingEventPipeline, PipelineError
-from meeting_summarizer.schemas import EventCandidate
+from meeting_summarizer.schemas import (
+    EventCandidate,
+    EventCase,
+    EvidenceSpan,
+    TimelineItem,
+)
 from meeting_summarizer.storage.json_store import JsonStore, load_json
 
 
@@ -16,10 +21,11 @@ class QueueProvider:
     def __init__(self, responses: list[str]) -> None:
         self.responses = responses
         self.prompts: list[str] = []
+        self.response_formats: list[str] = []
 
     def generate(self, prompt: str, *, response_format: str = "json") -> str:
         self.prompts.append(prompt)
-        assert response_format == "json"
+        self.response_formats.append(response_format)
         if not self.responses:
             raise AssertionError("No queued LLM response left.")
         return self.responses.pop(0)
@@ -61,6 +67,10 @@ def _client(tmp_path: Path, responses: list[str]) -> LLMClient:
     )
     (prompt_dir / "timeline_builder.md").write_text(
         "timeline=$event_case_json",
+        encoding="utf-8",
+    )
+    (prompt_dir / "final_report.md").write_text(
+        "report=$event_cases_json",
         encoding="utf-8",
     )
     return LLMClient(QueueProvider(responses), PromptLoader(prompt_dir))
@@ -196,3 +206,78 @@ def test_pipeline_requires_saved_candidates_and_groups(tmp_path: Path) -> None:
 
     with pytest.raises(PipelineError, match="No event candidates"):
         pipeline.merge_event_cases_from_artifacts()
+
+
+def _event_case() -> EventCase:
+    return EventCase(
+        case_id="case_alpha",
+        title="서비스 장애 대응",
+        summary="장애 대응 경과",
+        candidate_ids=["candidate_1"],
+        related_meeting_ids=["meeting_alpha"],
+        first_occurred_at=None,
+        actors=["운영팀"],
+        occurrence="서비스 장애가 보고됨",
+        discussion="원인 분석을 논의함",
+        actions=["로그 확인"],
+        result=None,
+        status="진행 중",
+        remaining_issues=["원인 확정"],
+        evidence=[
+            EvidenceSpan(
+                evidence_id="evidence_1",
+                candidate_id="candidate_1",
+                meeting_id="meeting_alpha",
+                segment_id="segment_1",
+                source_file="alpha.txt",
+                text="장애가 보고되었다.",
+            )
+        ],
+        timeline=[
+            TimelineItem(
+                timeline_id="timeline_1",
+                date=None,
+                order=0,
+                stage="occurrence",
+                description="장애 보고",
+                evidence_ids=["evidence_1"],
+            )
+        ],
+    )
+
+
+def _report_markdown() -> str:
+    return """## 서비스 장애 대응
+
+- 최초 발생: 확인 필요
+- 관련 회의록: meeting_alpha
+- 사건 내용: 서비스 장애가 보고됨
+- 처리 과정: 원인 분석을 논의하고 로그 확인을 결정함
+- 담당자: 운영팀
+- 최종 결과: 확인 필요
+- 현재 상태: 진행 중
+- 남은 이슈: 원인 확정
+- 근거: evidence_1 / alpha.txt / 장애가 보고되었다.
+"""
+
+
+def test_pipeline_writes_markdown_report_from_event_case_artifact(tmp_path: Path) -> None:
+    store = JsonStore(tmp_path)
+    store.save_event_cases([_event_case()])
+    client = _client(tmp_path, [_report_markdown()])
+    pipeline = MeetingEventPipeline(
+        _config(tmp_path),
+        llm_client=client,
+        store=store,
+    )
+
+    result = pipeline.write_markdown_report_from_artifacts()
+
+    assert result.event_case_count == 1
+    assert result.report_path == tmp_path / "reports" / "report.md"
+    assert (
+        result.report_path.read_text(encoding="utf-8")
+        == _report_markdown().rstrip() + "\n"
+    )
+    assert client.provider.response_formats == ["text"]
+    assert '"case_id": "case_alpha"' in client.provider.prompts[0]

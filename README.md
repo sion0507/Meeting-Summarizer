@@ -211,6 +211,25 @@ python scripts/run_pipeline.py merge-cases --data-dir ./data
 
 이 명령은 원본 회의록을 다시 읽지 않고, LLM 기반 사건 병합과 타임라인 정리를 거쳐 `data/cases/event_cases.json`을 저장합니다.
 
+### 5.4 Markdown 리포트 생성
+
+최종 사건 케이스 artifact가 존재하면, 원문 회의록이나 세그먼트를 다시 읽지 않고 `EventCase` 구조화 데이터만 LLM에 전달해 사용자용 Markdown 리포트를 생성합니다.
+
+- 입력: `data/cases/event_cases.json`
+- 출력: `data/reports/report.md`
+- 프롬프트: `prompts/final_report.md`
+- 필수 형식: 사건별 `## [사건명]` 제목과 `최초 발생`, `관련 회의록`, `사건 내용`, `처리 과정`, `담당자`, `최종 결과`, `현재 상태`, `남은 이슈`, `근거` 섹션
+
+```bash
+python scripts/run_pipeline.py generate-report
+```
+
+다른 데이터 디렉터리를 사용할 때는 다음처럼 지정합니다.
+
+```bash
+python scripts/run_pipeline.py generate-report --data-dir ./data
+```
+
 ---
 
 ## 6. 데이터 스키마
@@ -333,7 +352,7 @@ data/
   vector_store/candidate_metadata.json
 ```
 
-`event_cases.json`은 `EventMerger`가 만든 병합 결과를 `TimelineBuilder`로 정리한 뒤 저장하는 최종 사건 케이스 artifact입니다.
+`event_cases.json`은 `EventMerger`가 만든 병합 결과를 `TimelineBuilder`로 정리한 뒤 저장하는 최종 사건 케이스 artifact입니다. `report.md`는 이 `EventCase` artifact만 소스로 사용해 생성하며, 원문 회의록 전체를 다시 읽지 않습니다.
 
 ---
 
@@ -420,7 +439,7 @@ prompts/
 
 ## 14. 현재 구현 상태
 
-현재 문서는 프로젝트 설계 기준을 정리한 초기 README입니다.
+현재 구현은 파서, 세그먼트, 후보 추출, 임베딩/FAISS, 후보군 생성, 사건 병합, 타임라인 정리, Markdown 리포트 생성 모듈을 포함합니다. 실행 가능한 후반부 파이프라인 명령은 `merge-cases`와 `generate-report`입니다.
 
 실제 구현이 진행되면서 다음 내용은 변경될 수 있습니다.
 

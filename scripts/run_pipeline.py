@@ -1,11 +1,12 @@
 #!/usr/bin/env python
-"""Command-line entrypoint for runnable MVP pipeline stages."""
+"""Command-line entrypoint for the local MVP meeting-event pipeline."""
 
 from __future__ import annotations
 
 import argparse
 import os
 import sys
+import traceback
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -14,14 +15,41 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from meeting_summarizer.config import load_config  # noqa: E402
-from meeting_summarizer.orchestrator import MeetingEventPipeline  # noqa: E402
+from meeting_summarizer.orchestrator import (  # noqa: E402
+    MeetingEventPipeline,
+    PipelineStageError,
+)
+
+
+def _add_common_path_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--data-dir",
+        type=Path,
+        help="Override DATA_DIR for this run.",
+    )
+    parser.add_argument(
+        "--input-dir",
+        type=Path,
+        help="Override INPUT_DIR for this run (defaults to DATA_DIR/raw).",
+    )
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Run local meeting event analysis pipeline stages.",
     )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Print a Python traceback when a pipeline stage fails.",
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
+
+    run_parser = subparsers.add_parser(
+        "run",
+        help="Run the full end-to-end MVP pipeline from input files to report.md.",
+    )
+    _add_common_path_args(run_parser)
 
     merge_parser = subparsers.add_parser(
         "merge-cases",
@@ -31,11 +59,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "data/cases/event_cases.json."
         ),
     )
-    merge_parser.add_argument(
-        "--data-dir",
-        type=Path,
-        help="Override DATA_DIR for this run.",
-    )
+    _add_common_path_args(merge_parser)
 
     report_parser = subparsers.add_parser(
         "generate-report",
@@ -44,39 +68,82 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "data/reports/report.md from structured EventCase data."
         ),
     )
-    report_parser.add_argument(
-        "--data-dir",
-        type=Path,
-        help="Override DATA_DIR for this run.",
-    )
+    _add_common_path_args(report_parser)
     return parser.parse_args(argv)
+
+
+def _apply_path_overrides(args: argparse.Namespace) -> None:
+    if args.data_dir is not None:
+        os.environ["DATA_DIR"] = str(args.data_dir)
+    if args.input_dir is not None:
+        os.environ["INPUT_DIR"] = str(args.input_dir)
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
-    if args.data_dir is not None:
-        os.environ["DATA_DIR"] = str(args.data_dir)
+    _apply_path_overrides(args)
 
-    config = load_config()
-    pipeline = MeetingEventPipeline(config)
+    try:
+        config = load_config()
+        pipeline = MeetingEventPipeline(config)
 
-    if args.command == "merge-cases":
-        result = pipeline.merge_event_cases_from_artifacts()
-        print(
-            f"Saved {result.event_case_count} event case(s) to "
-            f"{result.event_cases_path}"
-        )
-        return 0
+        if args.command == "run":
+            result = pipeline.run()
+            print("Pipeline completed successfully.")
+            print(
+                "- Parsed documents: "
+                f"{result.parsed_document_count} -> {result.parsed_documents_path}"
+            )
+            print(f"- Segments: {result.segment_count} -> {result.segments_path}")
+            print(
+                "- Event candidates: "
+                f"{result.event_candidate_count} -> {result.event_candidates_path}"
+            )
+            print(
+                "- Candidate vectors: "
+                f"{result.candidate_vector_count} -> {result.faiss_index_path}"
+            )
+            print(f"- Candidate metadata: {result.candidate_metadata_path}")
+            print(
+                "- Candidate groups: "
+                f"{result.candidate_group_count} -> {result.candidate_groups_path}"
+            )
+            print(
+                f"- Event cases: {result.event_case_count} -> "
+                f"{result.event_cases_path}"
+            )
+            print(f"- Markdown report: {result.report_path}")
+            return 0
 
-    if args.command == "generate-report":
-        result = pipeline.write_markdown_report_from_artifacts()
-        print(
-            f"Saved Markdown report for {result.event_case_count} event case(s) to "
-            f"{result.report_path}"
-        )
-        return 0
+        if args.command == "merge-cases":
+            result = pipeline.merge_event_cases_from_artifacts()
+            print(
+                f"Saved {result.event_case_count} event case(s) to "
+                f"{result.event_cases_path}"
+            )
+            return 0
 
-    raise AssertionError(f"Unhandled command: {args.command}")
+        if args.command == "generate-report":
+            result = pipeline.write_markdown_report_from_artifacts()
+            print(
+                f"Saved Markdown report for {result.event_case_count} event case(s) to "
+                f"{result.report_path}"
+            )
+            return 0
+
+        raise AssertionError(f"Unhandled command: {args.command}")
+    except PipelineStageError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        print(f"Stage: {exc.stage}", file=sys.stderr)
+        print(f"Reason: {exc.reason}", file=sys.stderr)
+        if args.debug:
+            traceback.print_exc()
+        return 1
+    except Exception as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        if args.debug:
+            traceback.print_exc()
+        return 1
 
 
 if __name__ == "__main__":

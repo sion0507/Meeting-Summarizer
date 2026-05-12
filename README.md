@@ -192,7 +192,23 @@ LOCAL_LLM_TEMPERATURE=0.0
 
 `LOCAL_MODEL_PATH`는 실제 GGUF 모델 파일을 가리켜야 하며, HTTP 서버나 외부 API 호출 없이 로컬 파일 기반으로 모델을 실행합니다.
 
-### 5.3 실행 가능한 병합/타임라인 단계
+### 5.3 단일 커맨드 End-to-End 실행
+
+`data/raw/` 또는 `--input-dir`로 지정한 디렉터리에 `.txt`, `.docx`, `.pdf` 회의록을 넣은 뒤 다음 명령으로 MVP 전체 파이프라인을 실행할 수 있습니다.
+
+```bash
+python scripts/run_pipeline.py run
+```
+
+다른 입출력 디렉터리를 사용할 때는 다음처럼 지정합니다.
+
+```bash
+python scripts/run_pipeline.py run --input-dir ./meetings --data-dir ./data
+```
+
+이 명령은 파싱, 2페이지 세그먼트 생성, LLM 후보 추출, 임베딩, FAISS 저장, threshold 기반 그룹핑, LLM 사건 병합, LLM 타임라인 정리, JSON 저장, Markdown 리포트 생성을 고정 순서로 실행합니다. 실패하면 `Pipeline stage failed [단계명]: 사유` 형식으로 어느 단계에서 왜 실패했는지 출력합니다.
+
+### 5.4 실행 가능한 병합/타임라인 단계
 
 사건 후보 추출과 후보군 grouping까지 완료되어 다음 두 artifact가 존재하면, 저장된 구조화 데이터만 사용해 최종 `EventCase` 병합과 타임라인 정리를 실행할 수 있습니다.
 
@@ -211,7 +227,7 @@ python scripts/run_pipeline.py merge-cases --data-dir ./data
 
 이 명령은 원본 회의록을 다시 읽지 않고, LLM 기반 사건 병합과 타임라인 정리를 거쳐 `data/cases/event_cases.json`을 저장합니다.
 
-### 5.4 Markdown 리포트 생성
+### 5.5 Markdown 리포트 생성
 
 최종 사건 케이스 artifact가 존재하면, 원문 회의록이나 세그먼트를 다시 읽지 않고 `EventCase` 구조화 데이터만 LLM에 전달해 사용자용 Markdown 리포트를 생성합니다.
 

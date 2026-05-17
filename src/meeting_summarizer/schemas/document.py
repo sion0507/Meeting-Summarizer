@@ -38,7 +38,7 @@ class ParsedDocument:
 
 @dataclass(slots=True)
 class Segment:
-    """2-page unit (or TXT fallback unit) used for candidate extraction."""
+    """1-page unit (or TXT fallback unit) used for candidate extraction."""
 
     segment_id: str
     meeting_id: str

@@ -72,7 +72,7 @@ The pipeline must follow this order:
 ```text
 Input files
 → parsing / preprocessing
-→ 2-page segment generation
+→ 1-page segment generation
 → event candidate extraction with LLM
 → embedding generation for candidates
 → FAISS vector storage
@@ -168,15 +168,15 @@ However, the chosen structure must be documented in code, schema files, or proje
 The default segmentation rule is:
 
 ```text
-Split meeting text into 2-page segments.
+Split meeting text into 1-page segments.
 ```
 
 Expected examples:
 
 ```text
-segment_001: pages 1-2
-segment_002: pages 3-4
-segment_003: pages 5-6
+segment_001: page 1
+segment_002: page 2
+segment_003: page 3
 ```
 
 For `TXT` files, there is no native page concept.  
@@ -571,7 +571,7 @@ Must not call an LLM.
 
 ### `preprocessing/`
 
-Responsible for segmenting parsed text into 2-page chunks or documented TXT fallback chunks.
+Responsible for segmenting parsed text into 1-page chunks or documented TXT fallback chunks.
 
 Must not call an LLM.
 
@@ -631,7 +631,7 @@ However, after implementation or major changes, it must report:
 Recommended tests:
 
 - parser tests for TXT, DOCX, PDF
-- segmenter tests for 2-page chunking
+- segmenter tests for 1-page chunking
 - schema validation tests
 - event candidate extraction output validation
 - grouping threshold tests
@@ -699,7 +699,7 @@ Default similarity threshold:
 Default segment size:
 
 ```text
-2 pages
+1 page
 ```
 
 ---

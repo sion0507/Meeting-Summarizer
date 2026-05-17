@@ -72,7 +72,7 @@ def load_config() -> AppConfig:
             f"SIMILARITY_THRESHOLD must be between 0 and 1, got {similarity_threshold}."
         )
 
-    segment_size_pages = _require_int_env("SEGMENT_SIZE_PAGES", "2")
+    segment_size_pages = _require_int_env("SEGMENT_SIZE_PAGES", "1")
     if segment_size_pages < 1:
         raise ValueError(
             f"SEGMENT_SIZE_PAGES must be >= 1, got {segment_size_pages}."

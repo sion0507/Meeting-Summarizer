@@ -108,7 +108,7 @@ class MeetingEventPipeline:
 
     Full stage order::
 
-        input files -> parsing/preprocessing -> 2-page segments -> LLM candidate
+        input files -> parsing/preprocessing -> 1-page segments -> LLM candidate
         extraction -> candidate embeddings -> FAISS vector storage -> similarity
         grouping -> LLM case merge -> LLM timeline organization -> JSON output ->
         Markdown report output.
@@ -146,7 +146,7 @@ class MeetingEventPipeline:
 
         parsed_documents = self._run_stage("parsing / preprocessing", self.parse_inputs)
         segments = self._run_stage(
-            "2-page segment generation",
+            "1-page segment generation",
             lambda: self.build_segments(parsed_documents),
         )
         candidates = self._run_stage(

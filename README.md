@@ -45,7 +45,7 @@ HWP/HWPX 파일은 1차 구현 범위에서 제외하며, 추후 확장 대상�
 
 기본 세그먼트 분할 기준은 다음과 같습니다.
 
-- PDF/DOCX: 2페이지 단위로 분할
+- PDF/DOCX: 1페이지 단위로 분할
 - TXT: 페이지 개념이 없으므로 구현자가 합리적인 fallback 기준을 정하고 문서화
 
 회의 안건별 세그먼트 분할은 추후 고도화 대상으로 둡니다.
@@ -103,7 +103,7 @@ PDF/HTML 출력은 추후 확장 대상으로 둡니다.
 ```text
 회의록 파일들
 → 파싱/전처리
-→ 2페이지 단위 세그먼트 생성
+→ 1페이지 단위 세그먼트 생성
 → LLM으로 사건 후보 EventCandidate 추출
 → 후보별 embedding_text 임베딩
 → FAISS에 벡터 저장
@@ -206,7 +206,7 @@ python scripts/run_pipeline.py run
 python scripts/run_pipeline.py run --input-dir ./meetings --data-dir ./data
 ```
 
-이 명령은 파싱, 2페이지 세그먼트 생성, LLM 후보 추출, 임베딩, FAISS 저장, threshold 기반 그룹핑, LLM 사건 병합, LLM 타임라인 정리, JSON 저장, Markdown 리포트 생성을 고정 순서로 실행합니다. 실패하면 `Pipeline stage failed [단계명]: 사유` 형식으로 어느 단계에서 왜 실패했는지 출력합니다.
+이 명령은 파싱, 1페이지 세그먼트 생성, LLM 후보 추출, 임베딩, FAISS 저장, threshold 기반 그룹핑, LLM 사건 병합, LLM 타임라인 정리, JSON 저장, Markdown 리포트 생성을 고정 순서로 실행합니다. 실패하면 `Pipeline stage failed [단계명]: 사유` 형식으로 어느 단계에서 왜 실패했는지 출력합니다.
 
 ### 5.4 실행 가능한 병합/타임라인 단계
 
@@ -417,7 +417,7 @@ prompts/
 권장 테스트 범위는 다음과 같습니다.
 
 - TXT/DOCX/PDF 파싱 테스트
-- 2페이지 단위 세그먼트 분할 테스트
+- 1페이지 단위 세그먼트 분할 테스트
 - 사건 후보 스키마 검증 테스트
 - 임베딩 및 FAISS 저장 테스트
 - 유사도 0.8 기준 후보군 생성 테스트

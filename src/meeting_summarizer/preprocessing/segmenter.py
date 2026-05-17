@@ -2,7 +2,7 @@
 
 Policy
 ------
-- Default: create 2-page segments from parsed pages.
+- Default: create 1-page segments from parsed pages.
 - TXT fallback: because TXT has no native page concept, build pseudo-pages from
   paragraph blocks (fixed number of paragraphs per pseudo-page), then apply the
   same page-based segmentation logic.
@@ -21,7 +21,7 @@ from meeting_summarizer.schemas import ParsedDocument, Segment
 class Segmenter:
     """Convert parsed documents into fixed-size segments."""
 
-    segment_size_pages: int = 2
+    segment_size_pages: int = 1
     txt_paragraphs_per_pseudo_page: int = 12
 
     def __post_init__(self) -> None:

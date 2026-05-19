@@ -33,7 +33,7 @@ def _add_common_path_args(parser: argparse.ArgumentParser) -> None:
         help="Override INPUT_DIR for this run (defaults to DATA_DIR/raw).",
     )
 
-
+# terminal command parser 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Run local meeting event analysis pipeline stages.",
@@ -43,7 +43,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Print a Python traceback when a pipeline stage fails.",
     )
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    subparsers = parser.add_subparsers(dest="command", required=True) # for making sub-command
 
     run_parser = subparsers.add_parser(
         "run",
@@ -69,7 +69,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         ),
     )
     _add_common_path_args(report_parser)
-    return parser.parse_args(argv)
+    return parser.parse_args(argv) # this parse_args is diffrent with above parse_args. This is method of parser(object of Class ArgumentParser) summarizing command and returnig argparse.namsesapce object
+    
 
 
 def _apply_path_overrides(args: argparse.Namespace) -> None:
@@ -84,8 +85,8 @@ def main(argv: list[str] | None = None) -> int:
     _apply_path_overrides(args)
 
     try:
-        config = load_config()
-        pipeline = MeetingEventPipeline(config)
+        config = load_config() # load configures
+        pipeline = MeetingEventPipeline(config) # get object of MeetingEventPipeline Class
 
         if args.command == "run":
             result = pipeline.run()

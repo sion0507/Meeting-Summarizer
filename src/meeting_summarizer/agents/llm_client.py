@@ -18,12 +18,15 @@ import json
 import os
 import re
 import string
+import time
+from datetime import UTC, datetime
 from urllib import request as urllib_request
 from dataclasses import fields, is_dataclass
 from pathlib import Path
 from typing import Any, Protocol, TypeVar, get_args, get_origin, get_type_hints
 
 from meeting_summarizer.config import AppConfig
+from meeting_summarizer.utils.logging import get_logger
 
 DEFAULT_PROMPT_DIR = Path(__file__).resolve().parents[3] / "prompts"
 DEFAULT_CONTEXT_SIZE = 8192
@@ -33,6 +36,7 @@ DEFAULT_TEMPERATURE = 0.0
 DEFAULT_SERVER_TIMEOUT_SEC = 120
 
 T = TypeVar("T")
+LOGGER = get_logger(__name__)
 
 
 class LLMClientError(RuntimeError):
@@ -157,6 +161,7 @@ class LocalLLMProvider:
         self.n_gpu_layers = n_gpu_layers
         self.max_tokens = max_tokens
         self.temperature = temperature
+        self.last_usage: dict[str, int] = {}
         factory = llama_factory or _load_llama_class()
         self._llm = factory(
             model_path=str(self.model_path),
@@ -192,6 +197,7 @@ class LocalLLMProvider:
             kwargs["response_format"] = {"type": "json_object"}
 
         response = self._llm.create_chat_completion(**kwargs)
+        self.last_usage = _extract_usage(response)
         return _extract_chat_content(response)
 
 
@@ -218,6 +224,7 @@ class ServerLLMProvider:
             raise LLMProviderError("SERVER_BASE_URL must not be empty for LLM_PROVIDER=server.")
         if not self.model:
             raise LLMProviderError("SERVER_MODEL must not be empty for LLM_PROVIDER=server.")
+        self.last_usage: dict[str, int] = {}
 
     @classmethod
     def from_config(cls, _config: AppConfig) -> "ServerLLMProvider":
@@ -265,6 +272,7 @@ class ServerLLMProvider:
                 response_payload = json.loads(response.read().decode("utf-8"))
         except Exception as exc:
             raise LLMProviderError(f"Server provider request failed: {exc}") from exc
+        self.last_usage = _extract_usage(response_payload)
         return _extract_chat_content(response_payload)
 
 
@@ -274,6 +282,7 @@ class LLMClient:
     def __init__(self, provider: LLMProvider, prompt_loader: PromptLoader | None = None) -> None:
         self.provider = provider
         self.prompt_loader = prompt_loader or PromptLoader()
+        self._request_counter = 0
 
     @classmethod
     def from_config(cls, config: AppConfig) -> "LLMClient":
@@ -309,7 +318,7 @@ class LLMClient:
         """
 
         prompt = self.render_prompt(prompt_name, variables)
-        response_text = self.provider.generate(prompt, response_format="json")
+        response_text = self._generate_with_metrics(prompt, prompt_name, "json")
         payload = parse_json_response(response_text)
         if schema is None:
             return payload
@@ -328,7 +337,73 @@ class LLMClient:
         """
 
         prompt = self.render_prompt(prompt_name, variables)
-        return self.provider.generate(prompt, response_format="text")
+        return self._generate_with_metrics(prompt, prompt_name, "text")
+
+    def _generate_with_metrics(self, prompt: str, prompt_name: str, response_format: str) -> str:
+        self._request_counter += 1
+        request_id = self._request_counter
+        started = time.perf_counter()
+        response_text = self.provider.generate(prompt, response_format=response_format)
+        elapsed_sec = time.perf_counter() - started
+        usage = getattr(self.provider, "last_usage", {})
+        prompt_tokens = usage.get("prompt_tokens") if isinstance(usage, dict) else None
+        completion_tokens = usage.get("completion_tokens") if isinstance(usage, dict) else None
+        total_tokens = usage.get("total_tokens") if isinstance(usage, dict) else None
+        tok_per_sec = (
+            round(completion_tokens / elapsed_sec, 3)
+            if isinstance(completion_tokens, int) and elapsed_sec > 0
+            else None
+        )
+        LOGGER.info(
+            "LLM request #%s prompt=%s format=%s elapsed=%.3fs prompt_tokens=%s completion_tokens=%s total_tokens=%s tok_per_sec=%s",
+            request_id,
+            prompt_name,
+            response_format,
+            elapsed_sec,
+            prompt_tokens,
+            completion_tokens,
+            total_tokens,
+            tok_per_sec,
+        )
+        self._write_metrics_jsonl(
+            request_id=request_id,
+            prompt_name=prompt_name,
+            response_format=response_format,
+            elapsed_sec=elapsed_sec,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=total_tokens,
+            tok_per_sec=tok_per_sec,
+        )
+        return response_text
+
+    def _write_metrics_jsonl(
+        self,
+        *,
+        request_id: int,
+        prompt_name: str,
+        response_format: str,
+        elapsed_sec: float,
+        prompt_tokens: int | None,
+        completion_tokens: int | None,
+        total_tokens: int | None,
+        tok_per_sec: float | None,
+    ) -> None:
+        log_path = Path(os.getenv("LLM_METRICS_LOG_PATH", "logs/llm_metrics.jsonl"))
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "ts": datetime.now(UTC).isoformat(),
+            "request_id": request_id,
+            "prompt_name": prompt_name,
+            "response_format": response_format,
+            "elapsed_sec": round(elapsed_sec, 3),
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": total_tokens,
+            "tok_per_sec": tok_per_sec,
+        }
+        with log_path.open("a", encoding="utf-8") as file:
+            file.write(json.dumps(payload, ensure_ascii=False) + "\n")
 
 
 def build_llm_client(config: AppConfig) -> LLMClient:
@@ -486,3 +561,17 @@ def _extract_chat_content(response: Any) -> str:
     if not isinstance(content, str) or not content.strip():
         raise LLMProviderError("Local llama.cpp response content was empty.")
     return content
+
+
+def _extract_usage(response: Any) -> dict[str, int]:
+    if not isinstance(response, dict):
+        return {}
+    usage = response.get("usage")
+    if not isinstance(usage, dict):
+        return {}
+    result: dict[str, int] = {}
+    for key in ("prompt_tokens", "completion_tokens", "total_tokens"):
+        value = usage.get(key)
+        if isinstance(value, int):
+            result[key] = value
+    return result

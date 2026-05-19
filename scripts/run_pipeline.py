@@ -19,6 +19,7 @@ from meeting_summarizer.orchestrator import (  # noqa: E402
     MeetingEventPipeline,
     PipelineStageError,
 )
+from meeting_summarizer.utils.logging import configure_logging  # noqa: E402
 
 
 def _add_common_path_args(parser: argparse.ArgumentParser) -> None:
@@ -86,6 +87,8 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         config = load_config() # load configures
+        configure_logging(log_file=config.pipeline_log_path)
+        os.environ.setdefault("LLM_METRICS_LOG_PATH", str(config.llm_metrics_log_path))
         pipeline = MeetingEventPipeline(config) # get object of MeetingEventPipeline Class
 
         if args.command == "run":

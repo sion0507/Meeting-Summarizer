@@ -19,6 +19,7 @@ class AppConfig:
     similarity_threshold: float
     segment_size_pages: int
     extraction_max_workers: int
+    report_event_case_batch_size: int
 
     data_dir: Path
     input_dir: Path
@@ -83,6 +84,12 @@ def load_config() -> AppConfig:
         raise ValueError(
             f"EXTRACTION_MAX_WORKERS must be >= 1, got {extraction_max_workers}."
         )
+    report_event_case_batch_size = _require_int_env("REPORT_EVENT_CASE_BATCH_SIZE", "2")
+    if report_event_case_batch_size < 1:
+        raise ValueError(
+            "REPORT_EVENT_CASE_BATCH_SIZE must be >= 1, "
+            f"got {report_event_case_batch_size}."
+        )
 
     llm_provider = os.getenv("LLM_PROVIDER", "local").strip()
     if not llm_provider:
@@ -109,6 +116,7 @@ def load_config() -> AppConfig:
         similarity_threshold=similarity_threshold,
         segment_size_pages=segment_size_pages,
         extraction_max_workers=extraction_max_workers,
+        report_event_case_batch_size=report_event_case_batch_size,
         data_dir=data_dir,
         input_dir=input_dir,
         parsed_dir=parsed_dir,

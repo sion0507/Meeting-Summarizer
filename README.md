@@ -230,6 +230,7 @@ python scripts/run_pipeline.py merge-cases --data-dir ./data
 ### 5.5 Markdown 리포트 생성
 
 최종 사건 케이스 artifact가 존재하면, 원문 회의록이나 세그먼트를 다시 읽지 않고 `EventCase` 구조화 데이터만 LLM에 전달해 사용자용 Markdown 리포트를 생성합니다.
+기본적으로 `EventCase`를 2개씩 배치로 나눠 LLM에 전달하며(`REPORT_EVENT_CASE_BATCH_SIZE=2`), 컨텍스트 한계에 맞춰 환경 변수로 조정할 수 있습니다.
 
 - 입력: `data/cases/event_cases.json`
 - 출력: `data/reports/report.md`

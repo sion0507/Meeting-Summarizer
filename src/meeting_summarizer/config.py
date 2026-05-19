@@ -18,6 +18,7 @@ class AppConfig:
     embedding_device: str
     similarity_threshold: float
     segment_size_pages: int
+    extraction_max_workers: int
 
     data_dir: Path
     input_dir: Path
@@ -77,6 +78,11 @@ def load_config() -> AppConfig:
         raise ValueError(
             f"SEGMENT_SIZE_PAGES must be >= 1, got {segment_size_pages}."
         )
+    extraction_max_workers = _require_int_env("EXTRACTION_MAX_WORKERS", "1")
+    if extraction_max_workers < 1:
+        raise ValueError(
+            f"EXTRACTION_MAX_WORKERS must be >= 1, got {extraction_max_workers}."
+        )
 
     llm_provider = os.getenv("LLM_PROVIDER", "local").strip()
     if not llm_provider:
@@ -102,6 +108,7 @@ def load_config() -> AppConfig:
         embedding_device=embedding_device,
         similarity_threshold=similarity_threshold,
         segment_size_pages=segment_size_pages,
+        extraction_max_workers=extraction_max_workers,
         data_dir=data_dir,
         input_dir=input_dir,
         parsed_dir=parsed_dir,

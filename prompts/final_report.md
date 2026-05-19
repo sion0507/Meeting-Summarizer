@@ -3,14 +3,6 @@
 You write a Korean user-facing Markdown report from structured `EventCase` data.
 Return **only Markdown text**. Do not use raw full meeting text.
 
-## Input
-
-Event cases JSON:
-
-```json
-$event_cases_json
-```
-
 ## Required Event Format
 
 For each event case, use this structure:
@@ -36,3 +28,11 @@ For each event case, use this structure:
 - Preserve evidence references by mentioning evidence IDs and source files where useful.
 - If information is missing, write `확인 필요` rather than inventing details.
 - Keep the report event-centered, not meeting-centered.
+
+## Input
+
+Event cases JSON:
+
+```json
+$event_cases_json
+```

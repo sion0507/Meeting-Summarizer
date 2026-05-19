@@ -18,6 +18,7 @@ import json
 import os
 import re
 import string
+from urllib import request as urllib_request
 from dataclasses import fields, is_dataclass
 from pathlib import Path
 from typing import Any, Protocol, TypeVar, get_args, get_origin, get_type_hints
@@ -29,6 +30,7 @@ DEFAULT_CONTEXT_SIZE = 8192
 DEFAULT_GPU_LAYERS = -1
 DEFAULT_MAX_TOKENS = 2048
 DEFAULT_TEMPERATURE = 0.0
+DEFAULT_SERVER_TIMEOUT_SEC = 120
 
 T = TypeVar("T")
 
@@ -193,6 +195,79 @@ class LocalLLMProvider:
         return _extract_chat_content(response)
 
 
+class ServerLLMProvider:
+    """OpenAI-compatible HTTP provider for local model servers."""
+
+    def __init__(
+        self,
+        *,
+        base_url: str,
+        model: str,
+        api_key: str = "EMPTY",
+        max_tokens: int = DEFAULT_MAX_TOKENS,
+        temperature: float = DEFAULT_TEMPERATURE,
+        timeout_sec: int = DEFAULT_SERVER_TIMEOUT_SEC,
+    ) -> None:
+        self.base_url = base_url.rstrip("/")
+        self.model = model.strip()
+        self.api_key = api_key
+        self.max_tokens = max_tokens
+        self.temperature = temperature
+        self.timeout_sec = timeout_sec
+        if not self.base_url:
+            raise LLMProviderError("SERVER_BASE_URL must not be empty for LLM_PROVIDER=server.")
+        if not self.model:
+            raise LLMProviderError("SERVER_MODEL must not be empty for LLM_PROVIDER=server.")
+
+    @classmethod
+    def from_config(cls, _config: AppConfig) -> "ServerLLMProvider":
+        return cls(
+            base_url=os.getenv("SERVER_BASE_URL", "http://127.0.0.1:8080/v1"),
+            model=os.getenv("SERVER_MODEL", "local-model"),
+            api_key=os.getenv("SERVER_API_KEY", "EMPTY"),
+            max_tokens=_read_int_env("SERVER_MAX_TOKENS", DEFAULT_MAX_TOKENS),
+            temperature=_read_float_env("SERVER_TEMPERATURE", DEFAULT_TEMPERATURE),
+            timeout_sec=_read_int_env("SERVER_TIMEOUT_SEC", DEFAULT_SERVER_TIMEOUT_SEC),
+        )
+
+    def generate(self, prompt: str, *, response_format: str = "json") -> str:
+        payload: dict[str, Any] = {
+            "model": self.model,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a careful meeting event analysis assistant. "
+                        "Return only valid JSON when JSON is requested."
+                    ),
+                },
+                {"role": "user", "content": prompt},
+            ],
+            "temperature": self.temperature,
+            "max_tokens": self.max_tokens,
+        }
+        if response_format == "json":
+            payload["response_format"] = {"type": "json_object"}
+
+        endpoint = f"{self.base_url}/chat/completions"
+        data = json.dumps(payload).encode("utf-8")
+        req = urllib_request.Request(
+            endpoint,
+            method="POST",
+            data=data,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.api_key}",
+            },
+        )
+        try:
+            with urllib_request.urlopen(req, timeout=self.timeout_sec) as response:
+                response_payload = json.loads(response.read().decode("utf-8"))
+        except Exception as exc:
+            raise LLMProviderError(f"Server provider request failed: {exc}") from exc
+        return _extract_chat_content(response_payload)
+
+
 class LLMClient:
     """High-level client that renders prompts and validates JSON responses."""
 
@@ -205,9 +280,12 @@ class LLMClient:
         provider_name = config.llm_provider.lower()
         if provider_name == "local":
             provider: LLMProvider = LocalLLMProvider.from_config(config)
+        elif provider_name == "server":
+            provider = ServerLLMProvider.from_config(config)
         else:
             raise LLMProviderError(
-                f"Unsupported LLM_PROVIDER={config.llm_provider!r}. Supported providers: local."
+                "Unsupported LLM_PROVIDER="
+                f"{config.llm_provider!r}. Supported providers: local, server."
             )
         return cls(provider=provider)
 

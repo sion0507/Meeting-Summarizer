@@ -3,14 +3,6 @@
 You merge a group of similar `EventCandidate` objects into one final `EventCase`.
 Return **only valid JSON**. Do not wrap the response in prose.
 
-## Input
-
-Candidate group JSON:
-
-```json
-$candidate_group_json
-```
-
 ## Output Schema
 
 Return one JSON object matching this schema:
@@ -64,3 +56,11 @@ Return one JSON object matching this schema:
 - Timeline `order` must start at 0 and increase by 1.
 - Timeline `stage` must be one of: `occurrence`, `discussion`, `action`, `result`, `status_update`, `unknown`.
 - Return JSON only.
+
+## Input
+
+Candidate group JSON:
+
+```json
+$candidate_group_json
+```

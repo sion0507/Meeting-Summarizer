@@ -3,14 +3,6 @@
 You refine the timeline for an existing `EventCase` using only structured case data.
 Return **only valid JSON**. Do not wrap the response in prose.
 
-## Input
-
-Event case JSON:
-
-```json
-$event_case_json
-```
-
 ## Output Schema
 
 Return a JSON object with this shape:
@@ -38,3 +30,11 @@ Return a JSON object with this shape:
 - Preserve evidence references; every timeline item should cite relevant `evidence_ids` when possible.
 - Sort by supported date when available; otherwise use evidence/candidate appearance order.
 - Return JSON only.
+
+## Input
+
+Event case JSON:
+
+```json
+$event_case_json
+```

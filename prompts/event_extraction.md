@@ -3,14 +3,6 @@
 You extract event candidates from one meeting segment.
 Return **only valid JSON**. Do not wrap the response in prose.
 
-## Input
-
-Segment JSON:
-
-```json
-$segment_json
-```
-
 ## Output Schema
 
 Return a JSON object with this shape:
@@ -49,3 +41,11 @@ Return a JSON object with this shape:
 - Build `embedding_text` from event identity fields: title, summary, problem, action, result, actors, and keywords.
 - If the segment contains no event candidate, return `{ "candidates": [] }`.
 - Return JSON only.
+
+## Input
+
+Segment JSON:
+
+```json
+$segment_json
+```

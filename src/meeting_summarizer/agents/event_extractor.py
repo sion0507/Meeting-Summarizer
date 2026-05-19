@@ -10,6 +10,7 @@ logging the validation error.
 from __future__ import annotations
 
 from dataclasses import asdict
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from meeting_summarizer.agents.llm_client import (
@@ -51,19 +52,38 @@ class EventExtractor:
         *,
         prompt_name: str = DEFAULT_PROMPT_NAME,
         max_response_attempts: int = DEFAULT_MAX_RESPONSE_ATTEMPTS,
+        max_workers: int = 1,
     ) -> None:
         if max_response_attempts < 1:
             raise ValueError("max_response_attempts must be >= 1.")
+        if max_workers < 1:
+            raise ValueError("max_workers must be >= 1.")
         self.llm_client = llm_client
         self.prompt_name = prompt_name
         self.max_response_attempts = max_response_attempts
+        self.max_workers = max_workers
 
     def extract_from_segments(self, segments: list[Segment]) -> list[EventCandidate]:
         """Extract candidates from every segment and return a flat list."""
 
+        if self.max_workers == 1 or len(segments) <= 1:
+            candidates: list[EventCandidate] = []
+            for segment in segments:
+                candidates.extend(self.extract_from_segment(segment))
+            return candidates
+
+        segment_results: dict[int, list[EventCandidate]] = {}
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            future_pairs = [
+                (index, executor.submit(self.extract_from_segment, segment))
+                for index, segment in enumerate(segments)
+            ]
+            for index, future in future_pairs:
+                segment_results[index] = future.result()
+
         candidates: list[EventCandidate] = []
-        for segment in segments:
-            candidates.extend(self.extract_from_segment(segment))
+        for index in range(len(segments)):
+            candidates.extend(segment_results[index])
         return candidates
 
     def extract_from_segment(self, segment: Segment) -> list[EventCandidate]:

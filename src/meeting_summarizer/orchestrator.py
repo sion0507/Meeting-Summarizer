@@ -133,7 +133,9 @@ class MeetingEventPipeline:
         self.segmenter = segmenter or Segmenter(config.segment_size_pages)
         self.embedder = embedder
         self.faiss_store = faiss_store
-        self.event_extractor = EventExtractor(self.llm_client)
+        self.event_extractor = EventExtractor(
+            self.llm_client, max_workers=self.config.extraction_max_workers
+        )
         self.event_merger = EventMerger(self.llm_client)
         self.timeline_builder = TimelineBuilder(self.llm_client)
         self.report_writer = ReportWriter(self.llm_client)

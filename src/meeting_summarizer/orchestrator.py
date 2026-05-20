@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+import time
 from typing import Any, TypeVar
 
 from meeting_summarizer.agents.event_extractor import EventExtractor
@@ -390,13 +391,15 @@ class MeetingEventPipeline:
 
     def _run_stage(self, stage: str, action: Callable[[], T]) -> T:
         LOGGER.info("Starting pipeline stage: %s", stage)
+        started = time.perf_counter()
         try:
             result = action()
         except PipelineStageError:
             raise
         except Exception as exc:
             raise PipelineStageError(stage, str(exc)) from exc
-        LOGGER.info("Completed pipeline stage: %s", stage)
+        elapsed = time.perf_counter() - started
+        LOGGER.info("Completed pipeline stage: %s (elapsed=%.3fs)", stage, elapsed)
         return result
 
 

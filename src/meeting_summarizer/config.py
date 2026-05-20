@@ -37,6 +37,9 @@ class AppConfig:
     report_path: Path
     faiss_index_path: Path
     candidate_metadata_path: Path
+    logs_dir: Path = Path("logs")
+    pipeline_log_path: Path = Path("logs/pipeline.log")
+    llm_metrics_log_path: Path = Path("logs/llm_metrics.jsonl")
 
 
 def _require_float_env(key: str, default: str) -> float:
@@ -147,5 +150,6 @@ def ensure_output_directories(config: AppConfig) -> None:
         config.cases_dir,
         config.reports_dir,
         config.vector_store_dir,
+        config.logs_dir,
     ):
         directory.mkdir(parents=True, exist_ok=True)

@@ -40,6 +40,7 @@ def _config(tmp_path: Path) -> AppConfig:
         embedding_device="cpu",
         similarity_threshold=0.8,
         segment_size_pages=2,
+        extraction_max_workers=1,
         data_dir=tmp_path,
         input_dir=tmp_path / "raw",
         parsed_dir=tmp_path / "parsed",

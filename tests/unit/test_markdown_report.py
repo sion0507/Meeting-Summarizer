@@ -132,3 +132,14 @@ def test_report_writer_rejects_empty_event_cases(tmp_path: Path) -> None:
 
     with pytest.raises(ReportWriteError, match="No event cases"):
         writer.generate_report([])
+
+
+def test_report_writer_batches_event_cases_and_merges_markdown(tmp_path: Path) -> None:
+    client = _client(tmp_path, [_valid_markdown(), _valid_markdown()])
+    writer = ReportWriter(client, event_case_batch_size=1)
+
+    markdown = writer.generate_report([_case(), _case()])
+
+    assert len(client.provider.prompts) == 2
+    assert markdown.count("# 회의 이벤트 리포트") == 1
+    assert markdown.count("## 서비스 장애 대응") == 2

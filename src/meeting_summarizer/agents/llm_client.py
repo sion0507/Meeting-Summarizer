@@ -283,6 +283,11 @@ class LLMClient:
         self.provider = provider
         self.prompt_loader = prompt_loader or PromptLoader()
         self._request_counter = 0
+        self._usage_totals: dict[str, int] = {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0,
+        }
 
     @classmethod
     def from_config(cls, config: AppConfig) -> "LLMClient":
@@ -349,13 +354,18 @@ class LLMClient:
         prompt_tokens = usage.get("prompt_tokens") if isinstance(usage, dict) else None
         completion_tokens = usage.get("completion_tokens") if isinstance(usage, dict) else None
         total_tokens = usage.get("total_tokens") if isinstance(usage, dict) else None
-        tok_per_sec = (
+        request_completion_tok_per_sec = (
             round(completion_tokens / elapsed_sec, 3)
             if isinstance(completion_tokens, int) and elapsed_sec > 0
             else None
         )
+        self._usage_totals["prompt_tokens"] += prompt_tokens if isinstance(prompt_tokens, int) else 0
+        self._usage_totals["completion_tokens"] += (
+            completion_tokens if isinstance(completion_tokens, int) else 0
+        )
+        self._usage_totals["total_tokens"] += total_tokens if isinstance(total_tokens, int) else 0
         LOGGER.info(
-            "LLM request #%s prompt=%s format=%s elapsed=%.3fs prompt_tokens=%s completion_tokens=%s total_tokens=%s tok_per_sec=%s",
+            "LLM request #%s prompt=%s format=%s elapsed=%.3fs prompt_tokens=%s completion_tokens=%s total_tokens=%s request_completion_tok_per_sec=%s",
             request_id,
             prompt_name,
             response_format,
@@ -363,7 +373,7 @@ class LLMClient:
             prompt_tokens,
             completion_tokens,
             total_tokens,
-            tok_per_sec,
+            request_completion_tok_per_sec,
         )
         self._write_metrics_jsonl(
             request_id=request_id,
@@ -373,7 +383,7 @@ class LLMClient:
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
             total_tokens=total_tokens,
-            tok_per_sec=tok_per_sec,
+            request_completion_tok_per_sec=request_completion_tok_per_sec,
         )
         return response_text
 
@@ -387,7 +397,7 @@ class LLMClient:
         prompt_tokens: int | None,
         completion_tokens: int | None,
         total_tokens: int | None,
-        tok_per_sec: float | None,
+        request_completion_tok_per_sec: float | None,
     ) -> None:
         log_path = Path(os.getenv("LLM_METRICS_LOG_PATH", "logs/llm_metrics.jsonl"))
         log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -400,10 +410,15 @@ class LLMClient:
             "prompt_tokens": prompt_tokens,
             "completion_tokens": completion_tokens,
             "total_tokens": total_tokens,
-            "tok_per_sec": tok_per_sec,
+            "request_completion_tok_per_sec": request_completion_tok_per_sec,
         }
         with log_path.open("a", encoding="utf-8") as file:
             file.write(json.dumps(payload, ensure_ascii=False) + "\n")
+
+    def usage_totals_snapshot(self) -> dict[str, int]:
+        """Return cumulative usage totals for stage-level throughput metrics."""
+
+        return dict(self._usage_totals)
 
 
 def build_llm_client(config: AppConfig) -> LLMClient:

@@ -20,6 +20,7 @@ class AppConfig:
     segment_size_pages: int
     extraction_max_workers: int
     report_event_case_batch_size: int
+    report_max_workers: int
 
     data_dir: Path
     input_dir: Path
@@ -93,6 +94,11 @@ def load_config() -> AppConfig:
             "REPORT_EVENT_CASE_BATCH_SIZE must be >= 1, "
             f"got {report_event_case_batch_size}."
         )
+    report_max_workers = _require_int_env("REPORT_MAX_WORKERS", "1")
+    if report_max_workers < 1:
+        raise ValueError(
+            f"REPORT_MAX_WORKERS must be >= 1, got {report_max_workers}."
+        )
 
     llm_provider = os.getenv("LLM_PROVIDER", "local").strip()
     if not llm_provider:
@@ -120,6 +126,7 @@ def load_config() -> AppConfig:
         segment_size_pages=segment_size_pages,
         extraction_max_workers=extraction_max_workers,
         report_event_case_batch_size=report_event_case_batch_size,
+        report_max_workers=report_max_workers,
         data_dir=data_dir,
         input_dir=input_dir,
         parsed_dir=parsed_dir,

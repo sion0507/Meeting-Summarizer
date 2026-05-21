@@ -66,6 +66,7 @@ def _config(tmp_path: Path) -> AppConfig:
         segment_size_pages=2,
         extraction_max_workers=1,
         report_event_case_batch_size=2,
+        report_max_workers=1,
         data_dir=tmp_path,
         input_dir=tmp_path / "raw",
         parsed_dir=tmp_path / "parsed",

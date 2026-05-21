@@ -138,7 +138,11 @@ class MeetingEventPipeline:
         )
         self.event_merger = EventMerger(self.llm_client)
         self.timeline_builder = TimelineBuilder(self.llm_client)
-        self.report_writer = ReportWriter(self.llm_client)
+        self.report_writer = ReportWriter(
+            self.llm_client,
+            event_case_batch_size=self.config.report_event_case_batch_size,
+            max_workers=self.config.report_max_workers,
+        )
 
     def run(self) -> EndToEndPipelineResult:
         """Run the complete end-to-end MVP pipeline with stage-level errors."""

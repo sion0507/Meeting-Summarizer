@@ -9,6 +9,7 @@ and saves the report artifact.
 from __future__ import annotations
 
 from dataclasses import asdict
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +25,7 @@ from meeting_summarizer.utils.logging import get_logger
 DEFAULT_PROMPT_NAME = "final_report"
 DEFAULT_MAX_RESPONSE_ATTEMPTS = 2
 DEFAULT_EVENT_CASE_BATCH_SIZE = 2
+DEFAULT_MAX_WORKERS = 1
 
 LOGGER = get_logger(__name__)
 
@@ -42,15 +44,19 @@ class ReportWriter:
         prompt_name: str = DEFAULT_PROMPT_NAME,
         max_response_attempts: int = DEFAULT_MAX_RESPONSE_ATTEMPTS,
         event_case_batch_size: int = DEFAULT_EVENT_CASE_BATCH_SIZE,
+        max_workers: int = DEFAULT_MAX_WORKERS,
     ) -> None:
         if max_response_attempts < 1:
             raise ValueError("max_response_attempts must be >= 1.")
         if event_case_batch_size < 1:
             raise ValueError("event_case_batch_size must be >= 1.")
+        if max_workers < 1:
+            raise ValueError("max_workers must be >= 1.")
         self.llm_client = llm_client
         self.prompt_name = prompt_name
         self.max_response_attempts = max_response_attempts
         self.event_case_batch_size = event_case_batch_size
+        self.max_workers = max_workers
 
     def write_report(
         self, event_cases: list[EventCase], output_path: str | Path
@@ -72,11 +78,27 @@ class ReportWriter:
             )
 
         event_cases_json = [_event_case_to_prompt_dict(case) for case in event_cases]
-        markdown_batches = [
-            self._generate_batch_report(event_cases_json[start : start + self.event_case_batch_size])
+        batches = [
+            event_cases_json[start : start + self.event_case_batch_size]
             for start in range(0, len(event_cases_json), self.event_case_batch_size)
         ]
+        markdown_batches = self._generate_batch_reports(batches)
         return _merge_batch_markdowns(markdown_batches)
+
+    def _generate_batch_reports(self, batches: list[list[dict[str, Any]]]) -> list[str]:
+        if self.max_workers == 1 or len(batches) <= 1:
+            return [self._generate_batch_report(batch) for batch in batches]
+
+        batch_results: dict[int, str] = {}
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            future_pairs = [
+                (index, executor.submit(self._generate_batch_report, batch))
+                for index, batch in enumerate(batches)
+            ]
+            for index, future in future_pairs:
+                batch_results[index] = future.result()
+
+        return [batch_results[index] for index in range(len(batches))]
 
     def _generate_batch_report(self, event_cases_json: list[dict[str, Any]]) -> str:
         last_error: Exception | None = None

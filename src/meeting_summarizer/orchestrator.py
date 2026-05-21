@@ -7,6 +7,7 @@ timeline building, and reporting in their own packages.
 
 from __future__ import annotations
 
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -393,12 +394,30 @@ class MeetingEventPipeline:
 
     def _run_stage(self, stage: str, action: Callable[[], T]) -> T:
         LOGGER.info("Starting pipeline stage: %s", stage)
+        stage_started = time.perf_counter()
+        usage_before = self.llm_client.usage_totals_snapshot()
         try:
             result = action()
         except PipelineStageError:
             raise
         except Exception as exc:
             raise PipelineStageError(stage, str(exc)) from exc
+        stage_elapsed_sec = time.perf_counter() - stage_started
+        usage_after = self.llm_client.usage_totals_snapshot()
+        completion_tokens = usage_after["completion_tokens"] - usage_before["completion_tokens"]
+        total_tokens = usage_after["total_tokens"] - usage_before["total_tokens"]
+        if completion_tokens > 0 and stage_elapsed_sec > 0:
+            aggregate_tok_per_sec = round(completion_tokens / stage_elapsed_sec, 3)
+            total_token_per_sec = round(total_tokens / stage_elapsed_sec, 3)
+            LOGGER.info(
+                "Stage throughput: stage=%s stage_elapsed_sec=%.3f completion_tokens=%s total_tokens=%s aggregate_tok_per_sec=%s total_token_per_sec=%s",
+                stage,
+                stage_elapsed_sec,
+                completion_tokens,
+                total_tokens,
+                aggregate_tok_per_sec,
+                total_token_per_sec,
+            )
         LOGGER.info("Completed pipeline stage: %s", stage)
         return result
 

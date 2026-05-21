@@ -7,8 +7,12 @@ timeline building, and reporting in their own packages.
 
 from __future__ import annotations
 
+import json
+import os
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, TypeVar
 
@@ -393,14 +397,65 @@ class MeetingEventPipeline:
 
     def _run_stage(self, stage: str, action: Callable[[], T]) -> T:
         LOGGER.info("Starting pipeline stage: %s", stage)
+        stage_started = time.perf_counter()
+        usage_before = self.llm_client.usage_totals_snapshot()
         try:
             result = action()
         except PipelineStageError:
             raise
         except Exception as exc:
             raise PipelineStageError(stage, str(exc)) from exc
+        stage_elapsed_sec = time.perf_counter() - stage_started
+        usage_after = self.llm_client.usage_totals_snapshot()
+        completion_tokens = usage_after["completion_tokens"] - usage_before["completion_tokens"]
+        total_tokens = usage_after["total_tokens"] - usage_before["total_tokens"]
+        if completion_tokens > 0 and stage_elapsed_sec > 0:
+            aggregate_tok_per_sec = round(completion_tokens / stage_elapsed_sec, 3)
+            total_token_per_sec = round(total_tokens / stage_elapsed_sec, 3)
+            LOGGER.info(
+                "Stage throughput: stage=%s stage_elapsed_sec=%.3f completion_tokens=%s total_tokens=%s aggregate_tok_per_sec=%s total_token_per_sec=%s",
+                stage,
+                stage_elapsed_sec,
+                completion_tokens,
+                total_tokens,
+                aggregate_tok_per_sec,
+                total_token_per_sec,
+            )
+            self._write_stage_throughput_jsonl(
+                stage=stage,
+                stage_elapsed_sec=stage_elapsed_sec,
+                completion_tokens=completion_tokens,
+                total_tokens=total_tokens,
+                aggregate_tok_per_sec=aggregate_tok_per_sec,
+                total_token_per_sec=total_token_per_sec,
+            )
         LOGGER.info("Completed pipeline stage: %s", stage)
         return result
+
+    def _write_stage_throughput_jsonl(
+        self,
+        *,
+        stage: str,
+        stage_elapsed_sec: float,
+        completion_tokens: int,
+        total_tokens: int,
+        aggregate_tok_per_sec: float,
+        total_token_per_sec: float,
+    ) -> None:
+        log_path = Path(os.getenv("LLM_METRICS_LOG_PATH", "logs/llm_metrics.jsonl"))
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "ts": datetime.now(UTC).isoformat(),
+            "metric_type": "stage_throughput",
+            "stage": stage,
+            "stage_elapsed_sec": round(stage_elapsed_sec, 3),
+            "completion_tokens": completion_tokens,
+            "total_tokens": total_tokens,
+            "aggregate_tok_per_sec": aggregate_tok_per_sec,
+            "total_token_per_sec": total_token_per_sec,
+        }
+        with log_path.open("a", encoding="utf-8") as file:
+            file.write(json.dumps(payload, ensure_ascii=False) + "\n")
 
 
 def _discover_input_files(input_dir: Path) -> list[Path]:

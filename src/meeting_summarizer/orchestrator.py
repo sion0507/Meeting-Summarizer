@@ -10,7 +10,6 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-import time
 from typing import Any, TypeVar
 
 from meeting_summarizer.agents.event_extractor import EventExtractor
@@ -28,9 +27,9 @@ from meeting_summarizer.schemas import EventCandidate, EventCase, ParsedDocument
 from meeting_summarizer.storage.json_store import JsonStore
 from meeting_summarizer.utils.logging import get_logger
 
-LOGGER = get_logger(__name__)
+LOGGER = get_logger(__name__) #__name__ is current module name for representing source of log
 
-T = TypeVar("T")
+T = TypeVar("T") # T is used for _run_stage() to get any type of var and return tsame type
 
 SUPPORTED_INPUT_EXTENSIONS = {".txt", ".docx", ".pdf"}
 
@@ -139,10 +138,7 @@ class MeetingEventPipeline:
         )
         self.event_merger = EventMerger(self.llm_client)
         self.timeline_builder = TimelineBuilder(self.llm_client)
-        self.report_writer = ReportWriter(
-            self.llm_client,
-            event_case_batch_size=self.config.report_event_case_batch_size,
-        )
+        self.report_writer = ReportWriter(self.llm_client)
 
     def run(self) -> EndToEndPipelineResult:
         """Run the complete end-to-end MVP pipeline with stage-level errors."""
@@ -150,10 +146,10 @@ class MeetingEventPipeline:
         ensure_output_directories(self.config)
         self.store.ensure_structure()
 
-        parsed_documents = self._run_stage("parsing / preprocessing", self.parse_inputs)
+        parsed_documents = self._run_stage("parsing / preprocessing", self.parse_inputs) # not put () means just pass function to _run_stage and actually woks in there by action;)
         segments = self._run_stage(
             "1-page segment generation",
-            lambda: self.build_segments(parsed_documents),
+            lambda: self.build_segments(parsed_documents), # by usinf lambda it can pass function with parameters to _run_stages
         )
         candidates = self._run_stage(
             "event candidate extraction with LLM",
@@ -373,7 +369,9 @@ class MeetingEventPipeline:
         )
 
     def write_markdown_report(self, event_cases: list[EventCase]) -> ReportRunResult:
-        """Generate and save a Markdown report from already-built event cases."""
+        """Generate and save a Markdown report from already-built event cases.
+           Used by tests or callers that already hold EventCase objects in memory.
+        """
 
         if not event_cases:
             raise PipelineError(
@@ -391,15 +389,13 @@ class MeetingEventPipeline:
 
     def _run_stage(self, stage: str, action: Callable[[], T]) -> T:
         LOGGER.info("Starting pipeline stage: %s", stage)
-        started = time.perf_counter()
         try:
             result = action()
         except PipelineStageError:
             raise
         except Exception as exc:
             raise PipelineStageError(stage, str(exc)) from exc
-        elapsed = time.perf_counter() - started
-        LOGGER.info("Completed pipeline stage: %s (elapsed=%.3fs)", stage, elapsed)
+        LOGGER.info("Completed pipeline stage: %s", stage)
         return result
 
 

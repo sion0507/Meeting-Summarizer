@@ -52,6 +52,43 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     _add_common_path_args(run_parser)
 
+    parse_segment_parser = subparsers.add_parser(
+        "parse-and-segment",
+        help=(
+            "Parse supported raw files and build segments, then write "
+            "data/parsed/parsed_documents.json and data/segments/segments.json."
+        ),
+    )
+    _add_common_path_args(parse_segment_parser)
+
+    extract_parser = subparsers.add_parser(
+        "extract-candidates",
+        help=(
+            "Load data/segments/segments.json and extract event candidates to "
+            "data/candidates/event_candidates.json."
+        ),
+    )
+    _add_common_path_args(extract_parser)
+
+    embed_parser = subparsers.add_parser(
+        "embed-candidates",
+        help=(
+            "Load data/candidates/event_candidates.json and write "
+            "data/vector_store/candidate_vectors.json, candidates.faiss, "
+            "and candidate_metadata.json."
+        ),
+    )
+    _add_common_path_args(embed_parser)
+
+    group_parser = subparsers.add_parser(
+        "group-candidates",
+        help=(
+            "Load data/vector_store/candidate_vectors.json and write "
+            "data/vector_store/candidate_groups.json."
+        ),
+    )
+    _add_common_path_args(group_parser)
+
     merge_parser = subparsers.add_parser(
         "merge-cases",
         help=(
@@ -105,8 +142,9 @@ def main(argv: list[str] | None = None) -> int:
             )
             print(
                 "- Candidate vectors: "
-                f"{result.candidate_vector_count} -> {result.faiss_index_path}"
+                f"{result.candidate_vector_count} -> {config.vector_store_dir / 'candidate_vectors.json'}"
             )
+            print(f"- FAISS index: {result.faiss_index_path}")
             print(f"- Candidate metadata: {result.candidate_metadata_path}")
             print(
                 "- Candidate groups: "
@@ -117,6 +155,36 @@ def main(argv: list[str] | None = None) -> int:
                 f"{result.event_cases_path}"
             )
             print(f"- Markdown report: {result.report_path}")
+            return 0
+        if args.command == "parse-and-segment":
+            result = pipeline.parse_and_segment_inputs()
+            print(
+                f"Parsed documents: {result.parsed_document_count} -> {result.parsed_documents_path}"
+            )
+            print(f"Segments: {result.segment_count} -> {result.segments_path}")
+            return 0
+
+        if args.command == "extract-candidates":
+            candidates = pipeline.extract_event_candidates_from_artifacts()
+            print(
+                f"Event candidates: {len(candidates)} -> {config.event_candidates_path}"
+            )
+            return 0
+
+        if args.command == "embed-candidates":
+            result = pipeline.embed_candidates_from_artifacts()
+            print(
+                f"Candidate vectors: {result.count} -> {config.vector_store_dir / 'candidate_vectors.json'}"
+            )
+            print(f"FAISS index: {result.faiss_index_path}")
+            print(f"Candidate metadata: {result.candidate_metadata_path}")
+            return 0
+
+        if args.command == "group-candidates":
+            result = pipeline.group_candidates_from_artifacts()
+            print(
+                f"Candidate groups: {result.group_count} -> {result.groups_path}"
+            )
             return 0
 
         if args.command == "merge-cases":

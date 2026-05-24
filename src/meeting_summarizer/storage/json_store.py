@@ -33,6 +33,7 @@ ArtifactName = Literal[
     "parsed_documents",
     "segments",
     "event_candidates",
+    "candidate_vectors",
     "candidate_groups",
     "event_cases",
 ]
@@ -41,6 +42,7 @@ ARTIFACT_RELATIVE_PATHS: dict[ArtifactName, Path] = {
     "parsed_documents": Path("parsed") / "parsed_documents.json",
     "segments": Path("segments") / "segments.json",
     "event_candidates": Path("candidates") / "event_candidates.json",
+    "candidate_vectors": Path("vector_store") / "candidate_vectors.json",
     "candidate_groups": Path("vector_store") / "candidate_groups.json",
     "event_cases": Path("cases") / "event_cases.json",
 }
@@ -124,6 +126,34 @@ class JsonStore:
 
         payload = self.load_artifact("candidate_groups")
         return load_dataclass_list(payload, CandidateGroup)
+
+    def save_candidate_vectors(self, vectors: dict[str, list[float]]) -> Path:
+        """Save candidate embedding vectors for artifact-based grouping stage."""
+        return self.save_artifact("candidate_vectors", vectors)
+
+    def load_candidate_vectors(self) -> dict[str, list[float]]:
+        """Load and validate candidate vectors from canonical JSON artifact."""
+        payload = self.load_artifact("candidate_vectors")
+        if not isinstance(payload, dict):
+            raise JsonStoreError(
+                "Invalid candidate_vectors artifact: expected an object mapping candidate_id to numeric vector list."
+            )
+        normalized: dict[str, list[float]] = {}
+        for key, value in payload.items():
+            if not isinstance(key, str) or not key.strip():
+                raise JsonStoreError(
+                    "Invalid candidate_vectors artifact: keys must be non-empty strings."
+                )
+            if not isinstance(value, list) or not value:
+                raise JsonStoreError(
+                    f"Invalid candidate_vectors artifact for '{key}': value must be a non-empty list of numbers."
+                )
+            if not all(isinstance(item, (int, float)) for item in value):
+                raise JsonStoreError(
+                    f"Invalid candidate_vectors artifact for '{key}': all vector values must be int or float."
+                )
+            normalized[key] = [float(item) for item in value]
+        return normalized
 
     def save_event_cases(self, cases: list[EventCase]) -> Path:
         """Save final merged event cases after timeline organization."""

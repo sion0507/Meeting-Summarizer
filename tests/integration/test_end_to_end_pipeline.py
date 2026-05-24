@@ -201,6 +201,7 @@ def test_end_to_end_pipeline_with_sample_txt_and_test_doubles(tmp_path: Path) ->
         "## 서비스 장애 대응"
     )
     assert result.faiss_index_path.read_bytes() == b"fake-faiss-index"
+    assert (tmp_path / "vector_store" / "candidate_vectors.json").exists()
     assert client.provider.response_formats == ["json", "json", "json", "text"]
 
     candidates = JsonStore(tmp_path).load_event_candidates()

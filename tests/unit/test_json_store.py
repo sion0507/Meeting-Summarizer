@@ -63,3 +63,33 @@ def test_typed_load_reports_invalid_artifact_shape(tmp_path: Path) -> None:
 
     with pytest.raises(JsonStoreError, match="Expected a list"):
         store.load_parsed_documents()
+
+
+def test_candidate_vectors_round_trip_and_casts_to_float(tmp_path: Path) -> None:
+    store = JsonStore(tmp_path)
+
+    path = store.save_candidate_vectors({"candidate_1": [1, 2.5]})
+
+    assert path == tmp_path / "vector_store" / "candidate_vectors.json"
+    assert store.load_candidate_vectors() == {"candidate_1": [1.0, 2.5]}
+
+
+def test_candidate_vectors_validation_errors(tmp_path: Path) -> None:
+    store = JsonStore(tmp_path)
+    path = store.artifact_path("candidate_vectors")
+
+    save_json(path, [])
+    with pytest.raises(JsonStoreError, match="expected an object"):
+        store.load_candidate_vectors()
+
+    save_json(path, {"": [1.0]})
+    with pytest.raises(JsonStoreError, match="non-empty strings"):
+        store.load_candidate_vectors()
+
+    save_json(path, {"candidate_1": []})
+    with pytest.raises(JsonStoreError, match="non-empty list"):
+        store.load_candidate_vectors()
+
+    save_json(path, {"candidate_1": [1.0, "bad"]})
+    with pytest.raises(JsonStoreError, match="int or float"):
+        store.load_candidate_vectors()

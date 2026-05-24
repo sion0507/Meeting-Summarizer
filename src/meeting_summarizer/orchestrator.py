@@ -100,6 +100,16 @@ class PipelineRunResult:
 
 
 @dataclass(slots=True)
+class ParseAndSegmentResult:
+    """Paths and counts produced by parse + segment stage."""
+
+    parsed_documents_path: Path
+    parsed_document_count: int
+    segments_path: Path
+    segment_count: int
+
+
+@dataclass(slots=True)
 class ReportRunResult:
     """Path and count produced by the Markdown report pipeline stage."""
 
@@ -252,6 +262,7 @@ class MeetingEventPipeline:
             device=self.config.embedding_device,
         )
         vectors = embedder.embed_candidates(candidates)
+        self.store.save_candidate_vectors(vectors)
         vector_store = self.faiss_store or FaissCandidateStore(
             self.config.vector_store_dir
         )
@@ -272,6 +283,40 @@ class MeetingEventPipeline:
             candidate_metadata_path=Path(vector_store.metadata_path),
             count=len(vectors),
         )
+
+    def parse_and_segment_inputs(self) -> ParseAndSegmentResult:
+        """Parse inputs and build segments from raw files."""
+        ensure_output_directories(self.config)
+        self.store.ensure_structure()
+        parsed_documents = self.parse_inputs()
+        segments = self.build_segments(parsed_documents)
+        return ParseAndSegmentResult(
+            parsed_documents_path=self.config.parsed_documents_path,
+            parsed_document_count=len(parsed_documents),
+            segments_path=self.config.segments_path,
+            segment_count=len(segments),
+        )
+
+    def extract_event_candidates_from_artifacts(self) -> list[EventCandidate]:
+        """Load segments artifact then extract and save event candidates."""
+        ensure_output_directories(self.config)
+        self.store.ensure_structure()
+        segments = self.store.load_segments()
+        return self.extract_event_candidates(segments)
+
+    def embed_candidates_from_artifacts(self) -> CandidateVectorResult:
+        """Load event candidates artifact then embed/save vector artifacts."""
+        ensure_output_directories(self.config)
+        self.store.ensure_structure()
+        candidates = self.store.load_event_candidates()
+        return self.embed_and_store_candidates(candidates)
+
+    def group_candidates_from_artifacts(self) -> CandidateGroupingResult:
+        """Load candidate vectors artifact then group and save groups."""
+        ensure_output_directories(self.config)
+        self.store.ensure_structure()
+        candidate_vectors = self.store.load_candidate_vectors()
+        return self.group_and_save_candidates(candidate_vectors)
 
     def group_and_save_candidates(
         self,

@@ -129,12 +129,14 @@ Example:
 ```env
 LLM_PROVIDER=local
 LOCAL_MODEL_PATH=./models/qwen2.5-14b-q4.gguf
-EMBEDDING_MODEL=
+EMBEDDING_MODEL=nlpai-lab/KURE-v1
+EMBEDDING_MODEL_PATH=./models/KURE-v1
+EMBEDDING_DEVICE=cpu
 VECTOR_STORE=faiss
 ```
 
-The embedding model is not fixed yet.  
-Design the embedding module so the model can be replaced later.
+The MVP default embedding model is locally stored `nlpai-lab/KURE-v1`, loaded lazily from `EMBEDDING_MODEL_PATH` and run on `EMBEDDING_DEVICE` (CPU by default).  
+Keep the embedding module replaceable through the `BaseEmbedder` interface; `HashingEmbedder` is for deterministic tests, not the production default.
 
 ---
 
